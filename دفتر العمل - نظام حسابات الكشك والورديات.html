@@ -1,0 +1,1046 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>دفتر العمل | نظام حسابات الكشك والورديات</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Cairo', sans-serif;
+      background-color: #f1f5f9;
+    }
+    .tab-active {
+      background-color: #0f766e;
+      color: #ffffff;
+      box-shadow: 0 4px 12px rgba(15, 118, 110, 0.25);
+    }
+    .card-shadow {
+      box-shadow: 0 2px 10px rgba(15, 23, 42, 0.06);
+    }
+    /* Custom scrollbar for tables */
+    ::-webkit-scrollbar {
+      height: 6px;
+      width: 6px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 9999px;
+    }
+  </style>
+</head>
+<body class="text-slate-800 pb-24">
+
+  <!-- Toast Notification -->
+  <div id="toast" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 hidden bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-xl text-sm font-semibold transition-all duration-300 flex items-center gap-2">
+    <span id="toast-icon">✅</span>
+    <span id="toast-msg">تم الحفظ بنجاح</span>
+  </div>
+
+  <!-- Header -->
+  <header class="bg-gradient-to-l from-teal-800 to-emerald-700 text-white shadow-lg sticky top-0 z-40">
+    <div class="max-w-6xl mx-auto px-4 py-3.5 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-white/15 backdrop-blur flex items-center justify-center text-xl font-extrabold">
+          📒
+        </div>
+        <div>
+          <h1 class="text-lg sm:text-xl font-extrabold tracking-tight">دفتر العمل — حسابات الكشك</h1>
+          <p class="text-xs text-teal-100">إدارة الورديات • البنك (SNB) • الدرج • الدفتر بصفحاته الست</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button onclick="copySummaryTable()" class="bg-white text-teal-800 hover:bg-teal-50 active:scale-95 transition px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 shadow">
+          <span>📋</span>
+          <span>نسخ ملخص الوردية</span>
+        </button>
+        <button onclick="openResetModal()" class="bg-teal-900/60 hover:bg-teal-900 text-teal-100 px-3 py-2 rounded-xl text-xs font-semibold transition" title="إعادة ضبط البيانات الافتراضية">
+          <span>🔄</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 pt-5 space-y-6">
+
+    <!-- 3-Column Live Summary Bar (اليمين: الكاش | الوسط: الخردوات بالسالب/العجز | الشمال: البنك + المعلق + إجمالي موازنات الشهر) -->
+    <section aria-label="الملخص السريع">
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="text-sm font-bold text-slate-600 flex items-center gap-1.5">
+          <span>⚡</span>
+          <span>الخلاصة المعتمدة (يمين: الكاش • وسط: الخردوات والعجز • شمال: البنك والموازنات)</span>
+        </h2>
+        <span class="text-xs text-slate-400">تحديث تلقائي فوري</span>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <!-- 1. اليمين: الكاش -->
+        <div class="bg-white rounded-2xl p-4 border border-emerald-200 card-shadow relative overflow-hidden">
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg">💵 رصيد الكاش (الدرج)</span>
+            <button onclick="editDirectBalance('cash')" class="text-xs text-slate-400 hover:text-teal-700 underline">تعديل يدوي</button>
+          </div>
+          <div class="mt-2 flex items-baseline gap-1.5">
+            <span id="kpi-cash" class="text-2xl sm:text-3xl font-extrabold text-slate-900">1,645.00</span>
+            <span class="text-xs font-bold text-slate-500">ريال</span>
+          </div>
+          <p id="kpi-cash-note" class="text-xs text-slate-500 mt-1.5">الموجود فعلياً في الدرج الآن</p>
+        </div>
+
+        <!-- 2. الوسط: الخردوات (بسالب العجز ثم تتحول لفائض بالموجب) -->
+        <div class="bg-white rounded-2xl p-4 border border-amber-200 card-shadow relative overflow-hidden">
+          <div class="flex items-center justify-between mb-1">
+            <span id="kpi-khardawat-badge" class="text-xs font-bold text-rose-700 bg-rose-50 px-2.5 py-1 rounded-lg">📦 الخردوات (عجز متبقي)</span>
+            <button onclick="editDirectBalance('deficit')" class="text-xs text-slate-400 hover:text-teal-700 underline">تعديل العجز</button>
+          </div>
+          <div class="mt-2 flex items-baseline gap-1.5">
+            <span id="kpi-khardawat-net" dir="ltr" class="text-2xl sm:text-3xl font-extrabold text-rose-600">-972.00</span>
+            <span class="text-xs font-bold text-slate-500">ريال</span>
+          </div>
+          <p id="kpi-khardawat-note" class="text-xs text-slate-500 mt-1.5">كل إضافة خردوات أو فوائد دخان تنقص السالب حتى يخلص العجز ويزيد الرصيد</p>
+        </div>
+
+        <!-- 3. الشمال: البنك + آخر مبلغ معلق + إجمالي الموازنات من بداية الشهر -->
+        <div class="bg-white rounded-2xl p-4 border border-sky-200 card-shadow relative overflow-hidden space-y-2.5">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-sky-700 bg-sky-50 px-2.5 py-1 rounded-lg">🏦 البنك الأهلي (SNB)</span>
+            <button onclick="editDirectBalance('bank')" class="text-xs text-slate-400 hover:text-teal-700 underline">مطابقة الرصيد</button>
+          </div>
+
+          <!-- الرصيد الفعلي والمتوقع غداً -->
+          <div class="flex items-baseline justify-between gap-2">
+            <div>
+              <span id="kpi-bank-actual" class="text-2xl sm:text-3xl font-extrabold text-slate-900">7,630.11</span>
+              <span class="text-xs font-bold text-slate-500">فعلي</span>
+            </div>
+            <div class="text-left bg-sky-50 px-2.5 py-1 rounded-xl border border-sky-100">
+              <div class="text-[10px] text-sky-700 font-semibold">المتوقع غداً</div>
+              <div id="kpi-bank-expected" class="text-sm font-extrabold text-sky-900">9,198.64 ريال</div>
+            </div>
+          </div>
+
+          <!-- آخر مبلغ معلق (موازنة عبدالله الصباحية الأخيرة) -->
+          <div class="bg-amber-50/70 border border-amber-200/80 rounded-xl px-2.5 py-1.5 flex items-center justify-between text-xs">
+            <span class="text-amber-900 font-semibold">⏳ آخر معلق:</span>
+            <span id="kpi-last-pending" class="font-extrabold text-amber-950">عبدالله (صباح 21): 1,580.50 ريال</span>
+          </div>
+
+          <!-- رصيد الموازنات الفعلي من بداية الشهر -->
+          <div class="bg-teal-50/70 border border-teal-200/80 rounded-xl px-2.5 py-1.5 flex items-center justify-between text-xs">
+            <span class="text-teal-900 font-semibold">📊 موازنات الشهر (التراكمي):</span>
+            <span id="kpi-month-pos-total" class="font-extrabold text-teal-950">74,576.25 ريال</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Navigation Tabs -->
+    <nav class="bg-white p-1.5 rounded-2xl card-shadow border border-slate-200/70 flex overflow-x-auto gap-1.5" aria-label="أقسام الدفتر">
+      <button onclick="switchTab('quick')" id="tab-quick" class="tab-active whitespace-nowrap px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-1.5">
+        <span>⚡</span><span>إدخال سريع (وردية / فاتورة / تحويل)</span>
+      </button>
+      <button onclick="switchTab('p1')" id="tab-p1" class="text-slate-600 hover:bg-slate-100 whitespace-nowrap px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition">
+        <span>1️⃣</span><span>المصروفات والخرج</span>
+      </button>
+      <button onclick="switchTab('p2')" id="tab-p2" class="text-slate-600 hover:bg-slate-100 whitespace-nowrap px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition">
+        <span>2️⃣</span><span>مبيعات الخردوات</span>
+      </button>
+      <button onclick="switchTab('p3')" id="tab-p3" class="text-slate-600 hover:bg-slate-100 whitespace-nowrap px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition">
+        <span>3️⃣</span><span>فوائد الدخان</span>
+      </button>
+      <button onclick="switchTab('p4')" id="tab-p4" class="text-slate-600 hover:bg-slate-100 whitespace-nowrap px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition">
+        <span>4️⃣</span><span>موازنات البنك</span>
+      </button>
+      <button onclick="switchTab('p5')" id="tab-p5" class="text-slate-600 hover:bg-slate-100 whitespace-nowrap px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition">
+        <span>5️⃣</span><span>تحويلات البنك</span>
+      </button>
+      <button onclick="switchTab('p6')" id="tab-p6" class="text-slate-600 hover:bg-slate-100 whitespace-nowrap px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition">
+        <span>6️⃣</span><span>الدرج والجرد</span>
+      </button>
+    </nav>
+
+    <!-- TAB 0: QUICK ENTRY (إدخال سريع للورديات والعمليات اليومية) -->
+    <section id="view-quick" class="space-y-5">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+        <!-- Card A: تسجيل وردية (أمجد أو عبدالله) -->
+        <div class="bg-white rounded-2xl p-5 card-shadow border border-slate-200/70">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-base font-extrabold text-slate-800 flex items-center gap-2">
+              <span class="w-8 h-8 rounded-lg bg-teal-50 text-teal-700 flex items-center justify-center">🧾</span>
+              <span>تسجيل وردية جديدة (توزيع تلقائي)</span>
+            </h3>
+            <span class="text-xs bg-teal-50 text-teal-700 px-2.5 py-1 rounded-lg font-bold">خصم البنك 0.7575%</span>
+          </div>
+
+          <form id="form-shift" onsubmit="handleAddShift(event)" class="space-y-3.5">
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">التاريخ (يوم الشهر)</label>
+                <input type="number" id="shift-day" min="1" max="31" value="21" required class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-bold focus:outline-none focus:border-teal-600" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">الموظف</label>
+                <select id="shift-worker" class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-bold bg-white focus:outline-none focus:border-teal-600">
+                  <option value="amjad">أمجد (وردية الليل)</option>
+                  <option value="abdullah">عبدالله (وردية الصباح)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-3">
+              <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">الخردوات (ريال)</label>
+                <input type="number" step="0.01" id="shift-khardawat" placeholder="0" required class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-bold focus:outline-none focus:border-teal-600" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">الموازنة (مدى)</label>
+                <input type="number" step="0.01" id="shift-pos" placeholder="0.00" required oninput="updateShiftPreview()" class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-bold focus:outline-none focus:border-teal-600" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">الكاش (ريال)</label>
+                <input type="number" step="0.01" id="shift-cash" placeholder="0" required class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-bold focus:outline-none focus:border-teal-600" />
+              </div>
+            </div>
+
+            <!-- Live POS Commission Preview -->
+            <div class="bg-slate-50 rounded-xl p-3 border border-slate-200/80 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <div>
+                <span class="text-slate-500">عمولة البنك المقدرة (0.7575%):</span>
+                <strong id="preview-fee" class="text-rose-600 mr-1">0.00 ريال</strong>
+              </div>
+              <div>
+                <span class="text-slate-500">الصافي المتوقع نزوله في البنك:</span>
+                <strong id="preview-net" class="text-teal-700 mr-1">0.00 ريال</strong>
+              </div>
+            </div>
+
+            <button type="submit" class="w-full bg-teal-700 hover:bg-teal-800 active:scale-[0.99] text-white font-bold py-3 rounded-xl text-sm transition shadow">
+              حفظ الوردية وتحديث الكاش والخردوات والبنك
+            </button>
+          </form>
+        </div>
+
+        <!-- Card B: مصروف / فاتورة كاش أو تحويل بنكي -->
+        <div class="bg-white rounded-2xl p-5 card-shadow border border-slate-200/70">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-base font-extrabold text-slate-800 flex items-center gap-2">
+              <span class="w-8 h-8 rounded-lg bg-rose-50 text-rose-700 flex items-center justify-center">💸</span>
+              <span>خرج كاش (مناديب/فواتير) أو تحويل بنكي</span>
+            </h3>
+          </div>
+
+          <form id="form-expense" onsubmit="handleAddTransaction(event)" class="space-y-3.5">
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">نوع الحركة</label>
+                <select id="tx-type" onchange="toggleTxFields()" class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-bold bg-white focus:outline-none focus:border-teal-600">
+                  <option value="cash_out">صرف / فاتورة من الكاش (الدرج)</option>
+                  <option value="bank_transfer">تحويل بنكي (صفحة 5)</option>
+                  <option value="tobacco_profit">إضافة فوائد دخان (تخصم من العجز)</option>
+                  <option value="bank_settle">ترحيل الموازنات المعلقة للبنك الفعلي</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">التاريخ (يوم الشهر)</label>
+                <input type="number" id="tx-day" min="1" max="31" value="21" required class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-bold focus:outline-none focus:border-teal-600" />
+              </div>
+            </div>
+
+            <!-- Dynamic Fields -->
+            <div id="tx-company-wrap" class="hidden">
+              <label class="block text-xs font-bold text-slate-600 mb-1">الشركة / الجهة</label>
+              <select id="tx-company" class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-bold bg-white focus:outline-none focus:border-teal-600">
+                <option value="dunhill">دنهل (يشمل BAT)</option>
+                <option value="marlboro">مالبورو</option>
+                <option value="alsaf_w">توكيلات الساف (و = وست)</option>
+                <option value="alsaf_d">توكيلات الساف (د = دفيدوف)</option>
+                <option value="alsaf_wn">توكيلات الساف (ون = ونستون)</option>
+                <option value="alhulul">الحلول (جهاز البطائق)</option>
+              </select>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3" id="tx-amount-wrap">
+              <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">المبلغ (ريال)</label>
+                <input type="number" step="0.01" id="tx-amount" placeholder="0.00" class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-bold focus:outline-none focus:border-teal-600" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">البيان / الملاحظة</label>
+                <input type="text" id="tx-note" placeholder="مثلاً: فاتورة حامد دفيدوف" class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:border-teal-600" />
+              </div>
+            </div>
+
+            <div id="tx-settle-info" class="hidden bg-sky-50 border border-sky-200 text-sky-900 rounded-xl p-3 text-xs leading-relaxed">
+              سيتم إضافة صافي الموازنات المعلقة حالياً إلى <strong>رصيد البنك الفعلي</strong> وتصفير المعلق (استخدم هذا الزر صباح كل يوم عند نزول الإيداع في البنك).
+            </div>
+
+            <button type="submit" class="w-full bg-slate-800 hover:bg-slate-900 active:scale-[0.99] text-white font-bold py-3 rounded-xl text-sm transition shadow">
+              تنفيذ وتحديث الأرصدة
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Pending POS Settlements & Recent Log -->
+      <div class="bg-white rounded-2xl p-5 card-shadow border border-slate-200/70">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <h3 class="text-sm font-extrabold text-slate-800">⏳ الموازنات المعلقة بانتظار الترحيل للبنك صباح الغد</h3>
+          <button onclick="settlePendingPOS()" class="bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition">
+            ترحيل المعلق للبنك الفعلي الآن ✅
+          </button>
+        </div>
+        <div id="pending-pos-list" class="space-y-2 text-xs"></div>
+      </div>
+    </section>
+
+    <!-- TAB 1: PAGE 1 (مصروفات وخرج الخردوات) -->
+    <section id="view-p1" class="hidden space-y-4">
+      <div class="bg-white rounded-2xl p-5 card-shadow border border-slate-200/70">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+          <div>
+            <h3 class="text-base font-extrabold text-slate-800">الصفحة 1: مصروفات وخرج الخردوات</h3>
+            <p class="text-xs text-slate-500">الثابتة (تُقدّم كسلفة من الضمار) + المتغيرة + سحبيات العمال</p>
+          </div>
+          <div class="bg-rose-50 text-rose-700 px-3 py-1.5 rounded-xl text-xs font-extrabold">
+            إجمالي الخرج الكلي: <span id="p1-total">12,293.00</span> ريال
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- الثابتة -->
+          <div class="border border-slate-200 rounded-xl p-3.5">
+            <h4 class="text-xs font-extrabold text-teal-800 mb-2.5 bg-teal-50 px-2.5 py-1.5 rounded-lg">1. البنود الثابتة الشهرية</h4>
+            <ul class="space-y-2 text-xs">
+              <li class="flex justify-between border-b pb-1.5"><span>إيجار الكشك</span><strong>8,050.00 ريال</strong></li>
+              <li class="flex justify-between border-b pb-1.5"><span>إيجار السكن</span><strong>1,200.00 ريال</strong></li>
+              <li class="flex justify-between border-b pb-1.5"><span>مؤسسة أيمن (الكفيل)</span><strong>0.00 ريال</strong></li>
+              <li class="flex justify-between"><span>زيادة أمجد (مسك الحسابات)</span><strong>300.00 ريال</strong></li>
+            </ul>
+          </div>
+
+          <!-- سحبيات العمال -->
+          <div class="border border-slate-200 rounded-xl p-3.5">
+            <h4 class="text-xs font-extrabold text-amber-800 mb-2.5 bg-amber-50 px-2.5 py-1.5 rounded-lg">2. جدول سحبيات العمال</h4>
+            <table class="w-full text-xs text-right">
+              <thead>
+                <tr class="text-slate-400 border-b">
+                  <th class="pb-1.5">العامل</th>
+                  <th class="pb-1.5">التفاصيل</th>
+                  <th class="pb-1.5">المبلغ</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y">
+                <tr><td class="py-1.5 font-bold">عبدالله</td><td>يوم 12</td><td class="font-bold">1,000.00</td></tr>
+                <tr><td class="py-1.5 font-bold">أمجد</td><td>200 + 100 + 200</td><td class="font-bold">500.00</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- المتغيرة -->
+        <div class="mt-4 border border-slate-200 rounded-xl p-3.5">
+          <h4 class="text-xs font-extrabold text-slate-700 mb-2.5 bg-slate-100 px-2.5 py-1.5 rounded-lg">3. الخرج المتغير والفواتير النقدية</h4>
+          <div class="overflow-x-auto">
+            <table class="w-full text-xs text-right">
+              <thead>
+                <tr class="text-slate-400 border-b">
+                  <th class="pb-2">التاريخ</th>
+                  <th class="pb-2">البيان</th>
+                  <th class="pb-2">المبلغ</th>
+                </tr>
+              </thead>
+              <tbody id="p1-var-table" class="divide-y"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: PAGE 2 (مبيعات وفوائد الخردوات) -->
+    <section id="view-p2" class="hidden">
+      <div class="bg-white rounded-2xl p-5 card-shadow border border-slate-200/70">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+          <div>
+            <h3 class="text-base font-extrabold text-slate-800">الصفحة 2: مبيعات وفوائد الخردوات</h3>
+            <p class="text-xs text-slate-500">الترتيب المعتمد: أمجد | عبدالله | إجمالي | الكل (تراكمي من أول الشهر)</p>
+          </div>
+          <div class="flex gap-2 text-xs font-bold">
+            <span class="bg-teal-50 text-teal-800 px-3 py-1.5 rounded-xl">أمجد: <strong id="p2-sum-amjad">0</strong></span>
+            <span class="bg-sky-50 text-sky-800 px-3 py-1.5 rounded-xl">عبدالله: <strong id="p2-sum-abdullah">0</strong></span>
+          </div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs sm:text-sm text-right border-collapse">
+            <thead>
+              <tr class="bg-slate-100 text-slate-700">
+                <th class="p-2.5 rounded-r-xl">التاريخ</th>
+                <th class="p-2.5">أمجد</th>
+                <th class="p-2.5">عبدالله</th>
+                <th class="p-2.5">إجمالي اليوم</th>
+                <th class="p-2.5 rounded-l-xl">الكل التراكمي</th>
+              </tr>
+            </thead>
+            <tbody id="p2-table" class="divide-y divide-slate-100"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: PAGE 3 (فوائد الدخان) -->
+    <section id="view-p3" class="hidden">
+      <div class="bg-white rounded-2xl p-5 card-shadow border border-slate-200/70">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+          <div>
+            <h3 class="text-base font-extrabold text-slate-800">الصفحة 3: فوائد الدخان</h3>
+            <p class="text-xs text-slate-500">دنهل | مالبورو | توكيلات الساف (و = وست، د = دفيدوف، ون = ونستون) | إجمالي | الكل</p>
+          </div>
+          <span class="bg-emerald-50 text-emerald-800 px-3 py-1.5 rounded-xl text-xs font-extrabold">
+            التراكمي الكلي: <span id="p3-total">4,869.00</span> ريال
+          </span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs sm:text-sm text-right">
+            <thead>
+              <tr class="bg-slate-100 text-slate-700">
+                <th class="p-2.5 rounded-r-xl">التاريخ</th>
+                <th class="p-2.5">دنهل</th>
+                <th class="p-2.5">مالبورو</th>
+                <th class="p-2.5">توكيلات الساف</th>
+                <th class="p-2.5">إجمالي</th>
+                <th class="p-2.5 rounded-l-xl">الكل التراكمي</th>
+              </tr>
+            </thead>
+            <tbody id="p3-table" class="divide-y divide-slate-100"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: PAGE 4 (رصيد وموازنات البنك) -->
+    <section id="view-p4" class="hidden">
+      <div class="bg-white rounded-2xl p-5 card-shadow border border-slate-200/70">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+          <div>
+            <h3 class="text-base font-extrabold text-slate-800">الصفحة 4: رصيد وموازنات البنك</h3>
+            <p class="text-xs text-slate-500">أمجد | عبدالله | إجمالي | عمولة (0.7575% شاملة الضريبة) | الكل الصافي</p>
+          </div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs sm:text-sm text-right">
+            <thead>
+              <tr class="bg-slate-100 text-slate-700">
+                <th class="p-2.5 rounded-r-xl">التاريخ</th>
+                <th class="p-2.5">أمجد</th>
+                <th class="p-2.5">عبدالله</th>
+                <th class="p-2.5">إجمالي</th>
+                <th class="p-2.5 text-rose-700">عمولة البنك</th>
+                <th class="p-2.5 rounded-l-xl text-teal-800">الكل الصافي</th>
+              </tr>
+            </thead>
+            <tbody id="p4-table" class="divide-y divide-slate-100"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 5: PAGE 5 (تحويلات البنك) -->
+    <section id="view-p5" class="hidden">
+      <div class="bg-white rounded-2xl p-5 card-shadow border border-slate-200/70">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+          <div>
+            <h3 class="text-base font-extrabold text-slate-800">الصفحة 5: تحويلات البنك</h3>
+            <p class="text-xs text-slate-500">دنهل (يشمل BAT) | مالبورو | توكيلات الساف | الحلول (جهاز البطائق) | الكل الصافي مباشرة</p>
+          </div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs sm:text-sm text-right">
+            <thead>
+              <tr class="bg-slate-100 text-slate-700">
+                <th class="p-2.5 rounded-r-xl">التاريخ</th>
+                <th class="p-2.5">دنهل</th>
+                <th class="p-2.5">مالبورو</th>
+                <th class="p-2.5">توكيلات الساف</th>
+                <th class="p-2.5">الحلول</th>
+                <th class="p-2.5 rounded-l-xl">الكل الصافي</th>
+              </tr>
+            </thead>
+            <tbody id="p5-table" class="divide-y divide-slate-100"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 6: PAGE 6 (الدرج) -->
+    <section id="view-p6" class="hidden">
+      <div class="bg-white rounded-2xl p-5 card-shadow border border-slate-200/70">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+          <div>
+            <h3 class="text-base font-extrabold text-slate-800">الصفحة 6: حركة الدرج والمطابقة</h3>
+            <p class="text-xs text-slate-500">التاريخ | كاش أمس | مبيعات كاش اليوم | خرج من الدرج | المفروض | الفعلي المعدود | الفرق</p>
+          </div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs sm:text-sm text-right">
+            <thead>
+              <tr class="bg-slate-100 text-slate-700">
+                <th class="p-2.5 rounded-r-xl">التاريخ</th>
+                <th class="p-2.5">كاش أمس</th>
+                <th class="p-2.5">مبيعات كاش اليوم</th>
+                <th class="p-2.5">خرج من الدرج</th>
+                <th class="p-2.5">المفروض</th>
+                <th class="p-2.5">الفعلي المعدود</th>
+                <th class="p-2.5 rounded-l-xl">الفرق</th>
+              </tr>
+            </thead>
+            <tbody id="p6-table" class="divide-y divide-slate-100"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Custom Modal for Direct Balance Adjustment / Reset -->
+  <div id="custom-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4">
+      <h3 id="modal-title" class="text-base font-extrabold text-slate-800">تعديل الرصيد</h3>
+      <p id="modal-desc" class="text-xs text-slate-500">أدخل الرصيد الفعلي المؤكد الآن:</p>
+      <input type="number" step="0.01" id="modal-input" class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-bold focus:outline-none focus:border-teal-600" />
+      <div class="flex gap-2 justify-end">
+        <button onclick="closeModal()" class="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100">إلغاء</button>
+        <button id="modal-confirm-btn" class="px-4 py-2 rounded-xl text-xs font-bold bg-teal-700 text-white hover:bg-teal-800">حفظ</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // معامل عمولة البنك الدقيقة المستخرجة من كشف SNB وإيصالات الترحيل (0.7575%)
+    const BANK_FEE_RATE = 0.007575;
+    const STORAGE_KEY = 'daftar_al_amal_v2';
+
+    // الحالة الافتراضية المطابقة لآخر أرقامنا اليوم 21/11/2026
+    // khardawatNetBalance: بالسالب يمثل العجز (-972)، وكل إضافة خردوات أو فوائد تزيده نحو الصفر ثم للموجب (+)
+    const defaultState = {
+      cashBalance: 1645.00,
+      cashNote: 'بعد خصم فاتورة حامد دفيدوف (281 ريال كاش)',
+      khardawatNetBalance: -972.00,
+      bankActual: 7630.11,
+      pendingPOS: [
+        { id: 1, day: 21, worker: 'عبدالله (صباح 21/11)', amount: 1580.50 }
+      ],
+      p1_expenses: [
+        { day: 8, note: 'ساعات مندوب', amount: 180 },
+        { day: 8, note: 'ورق ودفاتر من هيثم', amount: 235 },
+        { day: 13, note: 'مناديل خرج', amount: 5 },
+        { day: 14, note: 'إكسسوارات الوكيل الشامل', amount: 347 },
+        { day: 15, note: 'ساعات مندوب', amount: 70 },
+        { day: 18, note: 'ولاعات من هيثم', amount: 125 },
+        { day: 21, note: 'فاتورة حامد دفيدوف (كاش)', amount: 281 }
+      ],
+      p2_khardawat: [
+        { day: 16, amjad: 246, abdullah: 179, cum: 5400 },
+        { day: 17, amjad: 106, abdullah: 72, cum: 5578 },
+        { day: 18, amjad: 103, abdullah: 143, cum: 5824 },
+        { day: 19, amjad: 123, abdullah: 88, cum: 6035 },
+        { day: 20, amjad: 145, abdullah: 118, cum: 6298 },
+        { day: 21, amjad: 0, abdullah: 235, cum: 6533 }
+      ],
+      p3_tobacco: [
+        { day: 18, dunhill: 36, marlboro: 268, alsaf: '268 (و)', daily: 572, cum: 4869 }
+      ],
+      // صفحة 66: رصيد وموازنات البنك التراكمية من بداية الشهر (آخر سطر مكتمل 17 = 65,471.50 ثم أيام 18 و19 و20 و21)
+      p4_bank_pos: [
+        { day: 17, amjad: 1796.00, abdullah: 1548.00, cumGross: 65471.50, cumNet: 64975.55 },
+        { day: 18, amjad: 1868.00, abdullah: 2260.50, cumGross: 69600.00, cumNet: 69072.78 },
+        { day: 19, amjad: 2160.00, abdullah: 1521.00, cumGross: 73281.00, cumNet: 72725.90 },
+        { day: 20, amjad: 2226.75, abdullah: 1617.00, cumGross: 77124.75, cumNet: 76540.53 },
+        { day: 21, amjad: 0, abdullah: 1580.50, cumGross: 78705.25, cumNet: 78109.06 }
+      ],
+      p5_transfers: [
+        { day: 18, dunhill: 3674.29, marlboro: 0, alsaf: 1452.00, alhulul: 2150.00, netTotal: 7276.29 },
+        { day: 19, dunhill: 0, marlboro: 0, alsaf: 0, alhulul: 4000.00, netTotal: 11276.29 }
+      ],
+      p6_drawer: [
+        { day: 20, prevCash: 4547, salesCash: 3466, outCash: 50, expected: 7963, actual: 1926, diff: 0 },
+        { day: 21, prevCash: 1926, salesCash: 0, outCash: 281, expected: 1645, actual: 1645, diff: 0 }
+      ]
+    };
+
+    let state = loadState();
+
+    function loadState() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        return saved ? JSON.parse(saved) : JSON.parse(JSON.stringify(defaultState));
+      } catch (e) {
+        return JSON.parse(JSON.stringify(defaultState));
+      }
+    }
+
+    function saveState() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      } catch (e) {
+        console.error('Storage error', e);
+      }
+    }
+
+    function formatNum(n) {
+      return Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function showToast(msg, icon = '✅') {
+      const toast = document.getElementById('toast');
+      document.getElementById('toast-msg').textContent = msg;
+      document.getElementById('toast-icon').textContent = icon;
+      toast.classList.remove('hidden');
+      setTimeout(() => toast.classList.add('hidden'), 3000);
+    }
+
+    function renderAll() {
+      // 1. اليمين: الكاش
+      document.getElementById('kpi-cash').textContent = formatNum(state.cashBalance);
+      document.getElementById('kpi-cash-note').textContent = state.cashNote;
+
+      // 2. الوسط: الخردوات (بسالب العجز حتى يخلص ثم بالموجب كفائض)
+      const netKhardawatEl = document.getElementById('kpi-khardawat-net');
+      const badgeEl = document.getElementById('kpi-khardawat-badge');
+      const noteEl = document.getElementById('kpi-khardawat-note');
+      const val = Number(state.khardawatNetBalance || 0);
+
+      if (val < 0) {
+        netKhardawatEl.textContent = '-' + formatNum(Math.abs(val));
+        netKhardawatEl.className = 'text-2xl sm:text-3xl font-extrabold text-rose-600';
+        badgeEl.textContent = '📦 الخردوات (سالب العجز)';
+        badgeEl.className = 'text-xs font-bold text-rose-700 bg-rose-50 px-2.5 py-1 rounded-lg';
+        noteEl.textContent = 'كل إضافة خردوات أو فوائد دخان تنقص السالب حتى يخلص العجز ويزيد الرصيد';
+      } else {
+        netKhardawatEl.textContent = '+' + formatNum(val);
+        netKhardawatEl.className = 'text-2xl sm:text-3xl font-extrabold text-emerald-600';
+        badgeEl.textContent = '📦 الخردوات (فائض ربح صافي)';
+        badgeEl.className = 'text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg';
+        noteEl.textContent = 'تغطى العجز بالكامل! الرصيد الآن بالموجب ويزداد مع كل وردية وفائدة';
+      }
+
+      // 3. الشمال: البنك + آخر مبلغ معلق + رصيد الموازنات الفعلي من بداية الشهر
+      const pendingGross = state.pendingPOS.reduce((acc, item) => acc + item.amount, 0);
+      const pendingFee = pendingGross * BANK_FEE_RATE;
+      const pendingNet = pendingGross - pendingFee;
+      const expectedBank = state.bankActual + pendingNet;
+
+      document.getElementById('kpi-bank-actual').textContent = formatNum(state.bankActual);
+      document.getElementById('kpi-bank-expected').textContent = formatNum(expectedBank) + ' ريال';
+
+      const lastPendingEl = document.getElementById('kpi-last-pending');
+      if (state.pendingPOS.length > 0) {
+        const lastItem = state.pendingPOS[state.pendingPOS.length - 1];
+        lastPendingEl.textContent = `${lastItem.worker}: ${formatNum(lastItem.amount)} ريال`;
+      } else {
+        lastPendingEl.textContent = 'لا يوجد معلق (الكل مرحّل)';
+      }
+
+      const lastPosRow = state.p4_bank_pos[state.p4_bank_pos.length - 1];
+      const monthPosGross = lastPosRow ? lastPosRow.cumGross : 0;
+      document.getElementById('kpi-month-pos-total').textContent = formatNum(monthPosGross) + ' ريال';
+
+      // 2. Pending POS List
+      const pendingContainer = document.getElementById('pending-pos-list');
+      if (state.pendingPOS.length === 0) {
+        pendingContainer.innerHTML = `<div class="text-slate-400 py-2">جميع الموازنات مرحّلة إلى الرصيد الفعلي للبنك.</div>`;
+      } else {
+        pendingContainer.innerHTML = state.pendingPOS.map(item => {
+          const net = item.amount * (1 - BANK_FEE_RATE);
+          return `
+            <div class="flex items-center justify-between bg-slate-50 px-3 py-2 rounded-xl border border-slate-200/70">
+              <div>
+                <span class="font-bold text-slate-800">${item.worker}</span>
+                <span class="text-slate-400 mr-2">يوم ${item.day}</span>
+              </div>
+              <div class="flex items-center gap-3">
+                <span>المبلغ: <strong>${formatNum(item.amount)}</strong></span>
+                <span class="text-teal-700 font-bold">الصافي: ${formatNum(net)} ريال</span>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      // 3. Page 1 Expenses
+      const fixedTotal = 8050 + 1200 + 300;
+      const workersTotal = 1000 + 500;
+      const varTotal = state.p1_expenses.reduce((s, x) => s + x.amount, 0);
+      document.getElementById('p1-total').textContent = formatNum(fixedTotal + workersTotal + varTotal);
+      document.getElementById('p1-var-table').innerHTML = state.p1_expenses.map(e => `
+        <tr>
+          <td class="py-2 font-bold">${e.day}</td>
+          <td class="py-2">${e.note}</td>
+          <td class="py-2 font-bold text-rose-600">${formatNum(e.amount)} ريال</td>
+        </tr>
+      `).join('');
+
+      // 4. Page 2 Khardawat
+      let sumAmjad = 0, sumAbdullah = 0;
+      document.getElementById('p2-table').innerHTML = state.p2_khardawat.map(r => {
+        sumAmjad += r.amjad;
+        sumAbdullah += r.abdullah;
+        const daily = r.amjad + r.abdullah;
+        return `
+          <tr>
+            <td class="p-2.5 font-bold">${r.day}</td>
+            <td class="p-2.5">${r.amjad}</td>
+            <td class="p-2.5">${r.abdullah}</td>
+            <td class="p-2.5 font-bold text-teal-700">${daily}</td>
+            <td class="p-2.5 font-extrabold">${r.cum.toLocaleString()}</td>
+          </tr>
+        `;
+      }).join('');
+      document.getElementById('p2-sum-amjad').textContent = sumAmjad;
+      document.getElementById('p2-sum-abdullah').textContent = sumAbdullah;
+
+      // 5. Page 3 Tobacco
+      const lastTobacco = state.p3_tobacco[state.p3_tobacco.length - 1];
+      document.getElementById('p3-total').textContent = formatNum(lastTobacco ? lastTobacco.cum : 0);
+      document.getElementById('p3-table').innerHTML = state.p3_tobacco.map(r => `
+        <tr>
+          <td class="p-2.5 font-bold">${r.day}</td>
+          <td class="p-2.5">${r.dunhill}</td>
+          <td class="p-2.5">${r.marlboro}</td>
+          <td class="p-2.5 font-semibold text-amber-700">${r.alsaf}</td>
+          <td class="p-2.5 font-bold">${r.daily}</td>
+          <td class="p-2.5 font-extrabold text-emerald-700">${r.cum.toLocaleString()}</td>
+        </tr>
+      `).join('');
+
+      // 6. Page 4 Bank POS
+      document.getElementById('p4-table').innerHTML = state.p4_bank_pos.map(r => {
+        const gross = r.amjad + r.abdullah;
+        const fee = gross * BANK_FEE_RATE;
+        return `
+          <tr>
+            <td class="p-2.5 font-bold">${r.day}</td>
+            <td class="p-2.5">${formatNum(r.amjad)}</td>
+            <td class="p-2.5">${formatNum(r.abdullah)}</td>
+            <td class="p-2.5 font-bold">${formatNum(gross)}</td>
+            <td class="p-2.5 text-rose-600 font-semibold">-${formatNum(fee)}</td>
+            <td class="p-2.5 font-extrabold text-teal-800">${formatNum(r.cumGross)} <span class="text-[11px] font-normal text-slate-400">(صافي: ${formatNum(r.cumNet)})</span></td>
+          </tr>
+        `;
+      }).join('');
+
+      // 7. Page 5 Bank Transfers
+      document.getElementById('p5-table').innerHTML = state.p5_transfers.map(r => `
+        <tr>
+          <td class="p-2.5 font-bold">${r.day}</td>
+          <td class="p-2.5">${r.dunhill ? formatNum(r.dunhill) : '-'}</td>
+          <td class="p-2.5">${r.marlboro ? formatNum(r.marlboro) : '-'}</td>
+          <td class="p-2.5">${r.alsaf ? formatNum(r.alsaf) : '-'}</td>
+          <td class="p-2.5">${r.alhulul ? formatNum(r.alhulul) : '-'}</td>
+          <td class="p-2.5 font-extrabold text-slate-800">${formatNum(r.netTotal)}</td>
+        </tr>
+      `).join('');
+
+      // 8. Page 6 Drawer
+      document.getElementById('p6-table').innerHTML = state.p6_drawer.map(r => `
+        <tr>
+          <td class="p-2.5 font-bold">${r.day}</td>
+          <td class="p-2.5">${formatNum(r.prevCash)}</td>
+          <td class="p-2.5 text-emerald-700 font-semibold">+${formatNum(r.salesCash)}</td>
+          <td class="p-2.5 text-rose-600 font-semibold">-${formatNum(r.outCash)}</td>
+          <td class="p-2.5 font-bold">${formatNum(r.expected)}</td>
+          <td class="p-2.5 font-bold">${formatNum(r.actual)}</td>
+          <td class="p-2.5 font-extrabold ${r.diff === 0 ? 'text-slate-400' : 'text-rose-600'}">${formatNum(r.diff)}</td>
+        </tr>
+      `).join('');
+    }
+
+    function updateShiftPreview() {
+      const pos = parseFloat(document.getElementById('shift-pos').value) || 0;
+      const fee = pos * BANK_FEE_RATE;
+      const net = pos - fee;
+      document.getElementById('preview-fee').textContent = formatNum(fee) + ' ريال';
+      document.getElementById('preview-net').textContent = formatNum(net) + ' ريال';
+    }
+
+    function handleAddShift(e) {
+      e.preventDefault();
+      const day = parseInt(document.getElementById('shift-day').value, 10);
+      const worker = document.getElementById('shift-worker').value;
+      const khardawat = parseFloat(document.getElementById('shift-khardawat').value) || 0;
+      const pos = parseFloat(document.getElementById('shift-pos').value) || 0;
+      const cash = parseFloat(document.getElementById('shift-cash').value) || 0;
+
+      const workerLabel = worker === 'amjad' ? 'أمجد (ليل)' : 'عبدالله (صباح)';
+
+      // 1. Update Cash (الدرج يجمع الكاش + الخردوات)
+      const prevCash = state.cashBalance;
+      state.cashBalance = prevCash + cash + khardawat;
+      state.cashNote = `بعد إضافة وردية ${workerLabel}: كاش ${cash} + خردوات ${khardawat}`;
+
+      // 2. Update Khardawat / Deficit Balance (ينقص السالب مباشرة، وإذا خلص العجز يزداد بالموجب)
+      state.khardawatNetBalance = Number(state.khardawatNetBalance || 0) + khardawat;
+
+      // Update Page 2 table
+      let p2Row = state.p2_khardawat.find(r => r.day === day);
+      const lastCum = state.p2_khardawat.length ? state.p2_khardawat[state.p2_khardawat.length - 1].cum : 0;
+      if (p2Row) {
+        p2Row[worker] += khardawat;
+        p2Row.cum += khardawat;
+      } else {
+        state.p2_khardawat.push({
+          day,
+          amjad: worker === 'amjad' ? khardawat : 0,
+          abdullah: worker === 'abdullah' ? khardawat : 0,
+          cum: lastCum + khardawat
+        });
+      }
+
+      // 3. Update Pending Bank POS & Page 4 (التراكمي من بداية الشهر)
+      if (pos > 0) {
+        state.pendingPOS.push({
+          id: Date.now(),
+          day,
+          worker: `${workerLabel} (${day}/11)`,
+          amount: pos
+        });
+
+        let p4Row = state.p4_bank_pos.find(r => r.day === day);
+        const lastGross = state.p4_bank_pos.length ? state.p4_bank_pos[state.p4_bank_pos.length - 1].cumGross : 0;
+        const lastNet = state.p4_bank_pos.length ? state.p4_bank_pos[state.p4_bank_pos.length - 1].cumNet : 0;
+        const netAdded = pos * (1 - BANK_FEE_RATE);
+        if (p4Row) {
+          p4Row[worker] += pos;
+          p4Row.cumGross += pos;
+          p4Row.cumNet += netAdded;
+        } else {
+          state.p4_bank_pos.push({
+            day,
+            amjad: worker === 'amjad' ? pos : 0,
+            abdullah: worker === 'abdullah' ? pos : 0,
+            cumGross: lastGross + pos,
+            cumNet: lastNet + netAdded
+          });
+        }
+      }
+
+      // 4. Update Page 6 Drawer
+      state.p6_drawer.push({
+        day,
+        prevCash,
+        salesCash: cash + khardawat,
+        outCash: 0,
+        expected: state.cashBalance,
+        actual: state.cashBalance,
+        diff: 0
+      });
+
+      saveState();
+      renderAll();
+      e.target.reset();
+      document.getElementById('shift-day').value = day;
+      updateShiftPreview();
+      showToast(`تم تسجيل وردية ${workerLabel} وتحديث الأرصدة!`);
+    }
+
+    function toggleTxFields() {
+      const type = document.getElementById('tx-type').value;
+      const companyWrap = document.getElementById('tx-company-wrap');
+      const amountWrap = document.getElementById('tx-amount-wrap');
+      const settleInfo = document.getElementById('tx-settle-info');
+
+      companyWrap.classList.toggle('hidden', type === 'cash_out' || type === 'bank_settle');
+      amountWrap.classList.toggle('hidden', type === 'bank_settle');
+      settleInfo.classList.toggle('hidden', type !== 'bank_settle');
+    }
+
+    function handleAddTransaction(e) {
+      e.preventDefault();
+      const type = document.getElementById('tx-type').value;
+      const day = parseInt(document.getElementById('tx-day').value, 10);
+      const amount = parseFloat(document.getElementById('tx-amount').value) || 0;
+      const note = document.getElementById('tx-note').value.trim();
+      const company = document.getElementById('tx-company').value;
+
+      if (type === 'bank_settle') {
+        settlePendingPOS();
+        return;
+      }
+
+      if (amount <= 0) {
+        showToast('أدخل مبلغاً صحيحاً أكبر من صفر', '⚠️');
+        return;
+      }
+
+      if (type === 'cash_out') {
+        const prevCash = state.cashBalance;
+        state.cashBalance = prevCash - amount;
+        state.cashNote = `خصم ${formatNum(amount)} ريال (${note || 'مصروف/مندوب كاش'})`;
+        state.p1_expenses.push({ day, note: note || 'صرف كاش من الدرج', amount });
+        state.p6_drawer.push({
+          day,
+          prevCash,
+          salesCash: 0,
+          outCash: amount,
+          expected: state.cashBalance,
+          actual: state.cashBalance,
+          diff: 0
+        });
+        showToast(`تم خصم ${formatNum(amount)} ريال من الكاش`);
+      } else if (type === 'bank_transfer') {
+        state.bankActual -= amount;
+        const lastTotal = state.p5_transfers.length ? state.p5_transfers[state.p5_transfers.length - 1].netTotal : 0;
+        const row = { day, dunhill: 0, marlboro: 0, alsaf: 0, alhulul: 0, netTotal: lastTotal + amount };
+        if (company === 'dunhill') row.dunhill = amount;
+        else if (company === 'marlboro') row.marlboro = amount;
+        else if (company.startsWith('alsaf')) row.alsaf = amount;
+        else if (company === 'alhulul') row.alhulul = amount;
+        state.p5_transfers.push(row);
+        showToast(`تم خصم تحويل ${formatNum(amount)} ريال من البنك`);
+      } else if (type === 'tobacco_profit') {
+        state.khardawatNetBalance = Number(state.khardawatNetBalance || 0) + amount;
+        const lastCum = state.p3_tobacco.length ? state.p3_tobacco[state.p3_tobacco.length - 1].cum : 0;
+        const tagMap = { alsaf_w: `${amount} (و)`, alsaf_d: `${amount} (د)`, alsaf_wn: `${amount} (ون)` };
+        state.p3_tobacco.push({
+          day,
+          dunhill: company === 'dunhill' ? amount : 0,
+          marlboro: company === 'marlboro' ? amount : 0,
+          alsaf: tagMap[company] || '-',
+          daily: amount,
+          cum: lastCum + amount
+        });
+        showToast(`تم خصم فائدة دخان (${formatNum(amount)} ريال) من العجز`);
+      }
+
+      saveState();
+      renderAll();
+      document.getElementById('tx-amount').value = '';
+      document.getElementById('tx-note').value = '';
+    }
+
+    function settlePendingPOS() {
+      if (state.pendingPOS.length === 0) {
+        showToast('لا توجد موازنات معلقة للترحيل', 'ℹ️');
+        return;
+      }
+      const gross = state.pendingPOS.reduce((s, i) => s + i.amount, 0);
+      const net = gross * (1 - BANK_FEE_RATE);
+      state.bankActual += net;
+      state.pendingPOS = [];
+      saveState();
+      renderAll();
+      showToast(`تم ترحيل صافي ${formatNum(net)} ريال إلى البنك الفعلي!`);
+    }
+
+    function switchTab(tabId) {
+      const tabs = ['quick', 'p1', 'p2', 'p3', 'p4', 'p5', 'p6'];
+      tabs.forEach(t => {
+        document.getElementById(`view-${t}`).classList.toggle('hidden', t !== tabId);
+        const btn = document.getElementById(`tab-${t}`);
+        if (t === tabId) {
+          btn.classList.add('tab-active');
+          btn.classList.remove('text-slate-600', 'hover:bg-slate-100');
+        } else {
+          btn.classList.remove('tab-active');
+          btn.classList.add('text-slate-600', 'hover:bg-slate-100');
+        }
+      });
+    }
+
+    // Copy 3-column summary table formatted for WhatsApp / Gemini
+    function copySummaryTable() {
+      const pendingGross = state.pendingPOS.reduce((s, i) => s + i.amount, 0);
+      const expectedBank = state.bankActual + pendingGross * (1 - BANK_FEE_RATE);
+      const lastPending = state.pendingPOS.length
+        ? `${state.pendingPOS[state.pendingPOS.length - 1].worker}: ${formatNum(state.pendingPOS[state.pendingPOS.length - 1].amount)} ريال`
+        : 'لا يوجد معلق';
+      const lastPosRow = state.p4_bank_pos[state.p4_bank_pos.length - 1];
+      const monthPosGross = lastPosRow ? lastPosRow.cumGross : 0;
+      const kVal = Number(state.khardawatNetBalance || 0);
+      const kText = kVal < 0 ? `-${formatNum(Math.abs(kVal))} ريال (عجز متبقي)` : `+${formatNum(kVal)} ريال (فائض ربح)`;
+
+      const text = `📊 ملخص دفتر العمل:\n` +
+        `• الكاش (الدرج): ${formatNum(state.cashBalance)} ريال (${state.cashNote})\n` +
+        `• الخردوات: ${kText}\n` +
+        `• البنك: ${formatNum(state.bankActual)} ريال فعلي | آخر معلق (${lastPending}) | المتوقع غداً: ${formatNum(expectedBank)} ريال\n` +
+        `• إجمالي موازنات الشهر: ${formatNum(monthPosGross)} ريال`;
+
+      const el = document.createElement('textarea');
+      el.value = text;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+      showToast('تم نسخ الملخص المختصر جاهزاً للصق في واتساب!');
+    }
+
+    // Modal handlers
+    function editDirectBalance(target) {
+      const modal = document.getElementById('custom-modal');
+      const title = document.getElementById('modal-title');
+      const desc = document.getElementById('modal-desc');
+      const input = document.getElementById('modal-input');
+      const btn = document.getElementById('modal-confirm-btn');
+
+      input.classList.remove('hidden');
+      if (target === 'cash') {
+        title.textContent = 'تعديل رصيد الكاش الفعلي في الدرج';
+        desc.textContent = 'أدخل المبلغ المعدود فعلياً في يدك الآن:';
+        input.value = state.cashBalance;
+        btn.onclick = () => {
+          state.cashBalance = parseFloat(input.value) || 0;
+          state.cashNote = 'تمت مطابقة الرصيد يدوياً';
+          saveState(); renderAll(); closeModal();
+          showToast('تم تحديث رصيد الكاش');
+        };
+      } else if (target === 'deficit') {
+        title.textContent = 'تعديل رصيد الخردوات / العجز';
+        desc.textContent = 'أدخل القيمة بالسالب للعجز (مثلاً -972) أو بالموجب للفائض:';
+        input.value = state.khardawatNetBalance;
+        btn.onclick = () => {
+          state.khardawatNetBalance = parseFloat(input.value) || 0;
+          saveState(); renderAll(); closeModal();
+          showToast('تم تحديث رصيد الخردوات والعجز');
+        };
+      } else {
+        title.textContent = 'مطابقة رصيد البنك الفعلي (SNB)';
+        desc.textContent = 'أدخل الرصيد الفعلي الظاهر في تطبيق البنك أو الإيصال:';
+        input.value = state.bankActual;
+        btn.onclick = () => {
+          state.bankActual = parseFloat(input.value) || 0;
+          saveState(); renderAll(); closeModal();
+          showToast('تمت مطابقة رصيد البنك الفعلي');
+        };
+      }
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function openResetModal() {
+      const modal = document.getElementById('custom-modal');
+      document.getElementById('modal-title').textContent = 'إعادة ضبط البيانات';
+      document.getElementById('modal-desc').textContent = 'هل تريد العودة إلى آخر أرقام معتمدة في السجل (21/11/2026)؟';
+      document.getElementById('modal-input').classList.add('hidden');
+      document.getElementById('modal-confirm-btn').onclick = () => {
+        state = JSON.parse(JSON.stringify(defaultState));
+        saveState(); renderAll(); closeModal();
+        showToast('تمت استعادة البيانات المعتمدة');
+      };
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeModal() {
+      const modal = document.getElementById('custom-modal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    // Initialize
+    renderAll();
+  </script>
+</body>
+</html>
